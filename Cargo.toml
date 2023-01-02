@@ -1,0 +1,28 @@
+[package]
+name = "ipass_library"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+home = "0.5.4"
+rpassword = "7.2"
+rand = { features = ["std"], default-features = false, version = "0.8.5" }
+aes-gcm = { features = ["alloc", "aes"], default-features = false, version = "0.10.1" }
+sha2 = { default-features = false, version = "0.10.6" }
+hex = "0.4.3"
+brotli = { features = ["std"], default-features = false, version = "3.3.4" }
+
+[profile.release]
+opt-level = 'z'     # Optimize for size
+lto = true          # Enable link-time optimization
+codegen-units = 1   # Reduce number of codegen units to increase optimizations
+panic = 'abort'     # Abort on panic
+# strip = true        # Strip symbols from binary; remove pdb
+
+[lib]
+name = "ip_lib"
+path = "src/lib.rs"
+doc = true
+crate-type = ["staticlib"]

@@ -192,7 +192,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "ipass_library"
+name = "ip_lib"
 version = "0.1.0"
 dependencies = [
  "aes-gcm",

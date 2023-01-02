@@ -1,5 +1,5 @@
 [package]
-name = "ipass_library"
+name = "ip_lib"
 version = "0.1.0"
 edition = "2021"
 
@@ -24,5 +24,3 @@ panic = 'abort'     # Abort on panic
 [lib]
 name = "ip_lib"
 path = "src/lib.rs"
-doc = true
-crate-type = ["staticlib"]

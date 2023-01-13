@@ -198,11 +198,10 @@ pub fn get_ipass_folder() -> String {
     return path;
 }
 
-pub fn create_entry(name: &String, pw: String) -> bool {
+pub fn create_entry(name: &String, pw: String, mpw: String) -> bool {
     if std::path::Path::new(&(get_ipass_folder()+name+".ipass")).exists() {
         return false;
     }
-    let mpw = ask_for_pw();
     // println!("{pw}");
     let pw = encrypt_pass(name.to_owned(), pw,mpw);
     let mut file = File::create(get_ipass_folder()+name+".ipass").unwrap();
@@ -215,13 +214,11 @@ fn read_entry(name:&String,mpw:String) -> String {
     return decrypt_pass(name.to_owned(),hex::decode(content).unwrap(),mpw).to_owned();
 }
 
-pub fn get_entry(name:&String) -> String {
-    let mpw = ask_for_pw();
+pub fn get_entry(name:&String, mpw: String) -> String {
     return read_entry(name,mpw);
 }
 
-pub fn edit_password(name:&String, password:String) {
-    let mpw = ask_for_pw();
+pub fn edit_password(name:&String, password:String, mpw: String) {
     let entry = read_entry(name, mpw.clone());
     // println!("entry: {entry}");
     let mut parts = entry.split(";");
@@ -232,8 +229,7 @@ pub fn edit_password(name:&String, password:String) {
     file.write_all(data.as_bytes()).unwrap();
 }
 
-pub fn edit_username(name:&String, username: String) {
-    let mpw = ask_for_pw();
+pub fn edit_username(name:&String, username: String, mpw: String) {
     let entry = read_entry(name, mpw.clone());
     // println!("entry: {entry}");
     let mut parts = entry.split(";");
@@ -242,11 +238,6 @@ pub fn edit_username(name:&String, username: String) {
     let data = encrypt_pass(name.to_owned(), username+";"+password,mpw);
     let mut file = File::create(get_ipass_folder()+name+".ipass").unwrap();
     file.write_all(data.as_bytes()).unwrap();
-}
-
-fn ask_for_pw() -> String {
-    let output = rpassword::prompt_password("Please enter the master password: ").unwrap();
-    return output.replace("\n", "").replace("\r","");
 }
 
 pub fn prompt_answer(toprint: String) -> String {
@@ -262,7 +253,7 @@ pub fn prompt_answer_nolower(toprint: String) -> String {
     return choice.trim().to_string();
 }
 
-pub fn rename(name: &String, new_name: &String) {
+pub fn rename(name: &String, new_name: &String, mpw: String) {
     if !std::path::Path::new(&(get_ipass_folder()+name+".ipass")).exists() {
         return;
     }
@@ -270,7 +261,6 @@ pub fn rename(name: &String, new_name: &String) {
         return;
     }
     let content = &mut read_to_string(get_ipass_folder()+name+".ipass").expect("Should have been able to read the file");
-    let mpw = ask_for_pw();
     let mut pw = decrypt_pass(name.to_owned(),hex::decode(content).unwrap(),mpw.clone()).to_owned();
 
     pw = encrypt_pass(new_name.to_owned(), pw,mpw);

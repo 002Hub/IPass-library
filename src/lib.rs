@@ -146,7 +146,9 @@ fn encrypt_pass(nonce_arg:String, pass: String,mpw: String) -> String {
     return hex::encode(ciphertext);
 }
 
-fn decrypt_pass(nonce_arg:String, pass: Vec<u8>,mpw: String) -> String {
+
+
+fn decrypt_pass(nonce_arg:String, pass: Vec<u8>,mpw: String) -> Result<String,String> {
     let mut nonce_argument = String::new();
     if nonce_arg.len() < 12 {
         nonce_argument = nonce_arg.clone() + &" ".repeat(12-nonce_arg.len());
@@ -170,11 +172,10 @@ fn decrypt_pass(nonce_arg:String, pass: Vec<u8>,mpw: String) -> String {
     let plaintext = cipher.decrypt(nonce, pass.as_ref());
     match plaintext {
         Ok(res) => {
-            return vecu8_to_string(res);
+            return Ok(vecu8_to_string(res));
         }
         Err(_) => {
-            eprintln!("[ERROR] Error decrypting data, check your master password");
-            std::process::exit(1);
+            return Err("[ERROR] Error decrypting data, check your master password".to_string());
         }
     }
 }
@@ -209,35 +210,43 @@ pub fn create_entry(name: &String, pw: String, mpw: String) -> bool {
     return true;
 }
 
-fn read_entry(name:&String,mpw:String) -> String {
+fn read_entry(name:&String,mpw:String) -> Result<String,String> {
     let content = &mut read_to_string(get_ipass_folder()+name+".ipass").expect("Should have been able to read the file");
-    return decrypt_pass(name.to_owned(),hex::decode(content).unwrap(),mpw).to_owned();
+    decrypt_pass(name.to_owned(),hex::decode(content).unwrap(),mpw)
 }
 
-pub fn get_entry(name:&String, mpw: String) -> String {
+pub fn get_entry(name:&String, mpw: String) -> Result<String,String> {
     return read_entry(name,mpw);
 }
 
-pub fn edit_password(name:&String, password:String, mpw: String) {
-    let entry = read_entry(name, mpw.clone());
-    // println!("entry: {entry}");
-    let mut parts = entry.split(";");
-    let username = parts.next().unwrap().to_string();
-    let _old_password = parts.next().unwrap();
-    let data = encrypt_pass(name.to_owned(), username+";"+password.as_str(),mpw);
-    let mut file = File::create(get_ipass_folder()+name+".ipass").unwrap();
-    file.write_all(data.as_bytes()).unwrap();
+pub fn edit_password(name:&String, password:String, mpw: String) -> bool {
+    let entry_result = read_entry(name, mpw.clone());
+    if let Ok(entry) = entry_result {
+        // println!("entry: {entry}");
+        let mut parts = entry.split(";");
+        let username = parts.next().unwrap().to_string();
+        let _old_password = parts.next().unwrap();
+        let data = encrypt_pass(name.to_owned(), username+";"+password.as_str(),mpw);
+        let mut file = File::create(get_ipass_folder()+name+".ipass").unwrap();
+        file.write_all(data.as_bytes()).unwrap();
+        return true;
+    }
+    return false;
 }
 
-pub fn edit_username(name:&String, username: String, mpw: String) {
-    let entry = read_entry(name, mpw.clone());
-    // println!("entry: {entry}");
-    let mut parts = entry.split(";");
-    let _old_username = parts.next().unwrap();
-    let password = parts.next().unwrap();
-    let data = encrypt_pass(name.to_owned(), username+";"+password,mpw);
-    let mut file = File::create(get_ipass_folder()+name+".ipass").unwrap();
-    file.write_all(data.as_bytes()).unwrap();
+pub fn edit_username(name:&String, username: String, mpw: String) -> bool {
+    let entry_result = read_entry(name, mpw.clone());
+    if let Ok(entry) = entry_result {
+        // println!("entry: {entry}");
+        let mut parts = entry.split(";");
+        let _old_username = parts.next().unwrap();
+        let password = parts.next().unwrap();
+        let data = encrypt_pass(name.to_owned(), username+";"+password,mpw);
+        let mut file = File::create(get_ipass_folder()+name+".ipass").unwrap();
+        file.write_all(data.as_bytes()).unwrap();
+        return true;
+    }
+    return false;
 }
 
 pub fn prompt_answer(toprint: String) -> String {
@@ -253,19 +262,22 @@ pub fn prompt_answer_nolower(toprint: String) -> String {
     return choice.trim().to_string();
 }
 
-pub fn rename(name: &String, new_name: &String, mpw: String) {
+pub fn rename(name: &String, new_name: &String, mpw: String) -> bool {
     if !std::path::Path::new(&(get_ipass_folder()+name+".ipass")).exists() {
-        return;
+        return false;
     }
     if std::path::Path::new(&(get_ipass_folder()+new_name+".ipass")).exists() {
-        return;
+        return false;
     }
     let content = &mut read_to_string(get_ipass_folder()+name+".ipass").expect("Should have been able to read the file");
-    let mut pw = decrypt_pass(name.to_owned(),hex::decode(content).unwrap(),mpw.clone()).to_owned();
-
-    pw = encrypt_pass(new_name.to_owned(), pw,mpw);
-    let mut file = File::create(get_ipass_folder()+new_name+".ipass").unwrap();
-    file.write_all(pw.as_bytes()).unwrap();
+    let data_result = decrypt_pass(name.to_owned(),hex::decode(content).unwrap(),mpw.clone()).to_owned();
+    if let Ok(mut data) = data_result {
+        data = encrypt_pass(new_name.to_owned(), data,mpw);
+        let mut file = File::create(get_ipass_folder()+new_name+".ipass").unwrap();
+        file.write_all(data.as_bytes()).unwrap();
+        return true;
+    }
+    return false;
 }
 
 pub fn get_entries() -> std::fs::ReadDir {

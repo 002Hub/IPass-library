@@ -27,10 +27,10 @@ pub fn get_args() -> Vec<String> {
 //     todo!("Get request");
 // }
 
-pub fn import_file(location:&String) -> bool {
-    if std::path::Path::new(&(location.clone()+"/export.ipassx")).exists() {
+pub fn import_file(file_path:&String) -> bool {
+    if std::path::Path::new(file_path).exists() {
         let mut reader = brotli::Decompressor::new(
-            File::open(location.clone()+"/export.ipassx").unwrap(),
+            File::open(file_path).unwrap(),
             4096, // buffer size
         );
         let mut content: String = String::new();
@@ -70,7 +70,7 @@ pub fn import_file(location:&String) -> bool {
     }
 }
 
-pub fn export_file(location:&String) -> bool {
+pub fn export_file(file_path:&String) -> bool {
     let mut collected_data: String = String::new();
 
     let paths = read_dir(get_ipass_folder()).unwrap();
@@ -82,7 +82,7 @@ pub fn export_file(location:&String) -> bool {
         }
     }
 
-    if let Ok(file) = File::create(location.clone()+"/export.ipassx") {
+    if let Ok(file) = File::create(file_path) {
         let mut writer = brotli::CompressorWriter::new(
             file,
             4096,

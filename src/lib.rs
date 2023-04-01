@@ -13,18 +13,19 @@ use rand::{
     rngs::OsRng,
     RngCore
 };
+use serde::{Deserialize, Serialize};
 
 pub fn get_args() -> Vec<String> {
     //! [0] = file path; [n>0] = argument
     std::env::args().collect()
 }
 
-#[derive(serde::Deserialize, Debug)]
+#[derive(Debug, Deserialize, Serialize)]
 struct Saved {
     success: bool,
-    _status: u16,
+    status: u16,
     data: Vec<u8>,
-    _errorcode: u64
+    errorcode: u64
 }
 
 fn get_token() -> Option<String> {
@@ -37,28 +38,95 @@ fn get_token() -> Option<String> {
     Some(token)
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+struct HashRes {
+    success: bool,
+    hash: String,
+    status: u16,
+    errorcode: u64
+}
 
-pub async fn isync_get() -> bool {
+fn sha256hexhash(data: Vec<u8>) -> String {
+    let mut hash = Sha256::new();
+    hash.update(data);
+    format!("{:X}", hash.finalize())
+}
+
+pub async fn isync_compare_hashes() -> bool {
+    let hash = sha256hexhash(export_data().unwrap());
+
     let token = get_token();
     match token {
         Some(token) => {
             let client = reqwest::Client::builder().https_only(true).build().unwrap();
-            let req = client.get("https://ipass.ipost.rocks/saved").header("ipass-auth-token", token).build().unwrap();
+            let req = client.get("https://ipass.ipost.rocks/hash")
+            .header("ipass-auth-token", token)
+            .timeout(std::time::Duration::from_secs(3))
+            .build().unwrap();
             let res = client.execute(req).await.unwrap();
-            let body = res.json::<Saved>().await.unwrap();
+            let body = res.json::<HashRes>().await.unwrap();
             if body.success {
-                File::create(get_ipass_folder()+"temp.ipassx").unwrap().write_all(&body.data).unwrap();
-                import_file(&(get_ipass_folder()+"temp.ipassx"));
-                std::fs::remove_file(get_ipass_folder()+"temp.ipassx").unwrap();
+                println!("Hash: {} {}", hash, body.hash);
+                return body.hash == hash;
+            } else {
+                eprintln!("Error: {}", body.errorcode);
                 return true;
             }
         },
         None => {
-            return false;
+            eprintln!("No token found!");
+            return true;
         }
     }
+}
 
-    false
+pub async fn isync_get() -> bool {
+    if !isync_compare_hashes().await {
+        let token = get_token();
+        match token {
+            Some(token) => {
+                let client = reqwest::Client::builder().https_only(true).build().unwrap();
+                let req = client.get("https://ipass.ipost.rocks/saved")
+                .header("ipass-auth-token", token)
+                .timeout(std::time::Duration::from_secs(3))
+                .build().unwrap();
+                let res = client.execute(req).await.unwrap();
+                let body = res.json::<Saved>().await.unwrap();
+                if body.success {
+                    println!("new hash: {}",sha256hexhash(body.data.clone()));
+                    File::create(get_ipass_folder()+"temp.ipassx").unwrap().write_all(&body.data).unwrap();
+                    import_file(&(get_ipass_folder()+"temp.ipassx"));
+                    std::fs::remove_file(get_ipass_folder()+"temp.ipassx").unwrap();
+                    return true;
+                } else {
+                    if body.status == 200 {
+                        return true;
+                    }
+                    eprintln!("Error: {}", body.errorcode);
+                    return false;
+                }
+            },
+            None => {
+                eprintln!("No token found!");
+                return false;
+            }
+        }
+    }
+    true
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct Save {
+    success: bool,
+    status: u16,
+    errorcode: u64
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct SavedData {
+    data: Vec<u8>,
+    amount: i32,
+    token: String
 }
 
 pub async fn isync_save() -> bool {
@@ -68,15 +136,32 @@ pub async fn isync_save() -> bool {
             let token = get_token();
             match token {
                 Some(token) => {
+                    let saveddata = SavedData {
+                        data,
+                        amount: read_dir(get_ipass_folder()).unwrap().count() as i32,
+                        token
+                    };
+
+                    let requestbody = serde_json::to_string(&saveddata).unwrap();
+
                     let client = reqwest::Client::builder().https_only(true).build().unwrap();
-                    let req = client.post("https://ipass.ipost.rocks/saved")
-                        .header("ipass-auth-token", token)
-                        .body(data)
+                    let req = client.post("https://ipass.ipost.rocks/save")
+                        .body(requestbody)
+                        .header("content-type", "application/json")
+                        .timeout(std::time::Duration::from_secs(5))
                         .build()
                         .unwrap();
-                    let _res = client.execute(req).await.unwrap();
-                    //sent data
-                    true
+                    let res = client.execute(req).await.unwrap();
+                    let response = res.json::<Save>().await.unwrap();
+                    if response.success {
+                        return true;
+                    } else {
+                        if response.status == 200 {
+                            return true;
+                        }
+                        eprintln!("Error: {}", response.errorcode);
+                        return false;
+                    }
                 },
                 None => {
                     false
@@ -109,6 +194,14 @@ pub fn import_data<R: Read>(mut reader: brotli::Decompressor<R>) {
         }
     }
 
+    let entries = get_entries().flatten();
+    for entry in entries {
+        if entry.file_name().to_str().unwrap().ends_with(".ipasst") || entry.file_name().to_str().unwrap().ends_with(".ipassx") {
+            continue;
+        }
+        std::fs::remove_file(entry.path()).unwrap();
+    }
+
     let lines = content.lines();
     let mut name = "";
     for i in lines {
@@ -116,6 +209,8 @@ pub fn import_data<R: Read>(mut reader: brotli::Decompressor<R>) {
             name = i;
             continue;
         }
+
+        println!("importing {}...", name);
 
         let mut file = File::create(format!("{}/{}.ipass",get_ipass_folder(), name)).unwrap();
         file.write_all(i.as_bytes()).unwrap();
@@ -141,6 +236,9 @@ pub fn export_data() -> Option<Vec<u8>> {
     let paths = std::fs::read_dir(get_ipass_folder()).ok()?;
 
     for path in paths.flatten() {
+        if path.file_name().into_string().ok()?.ends_with(".ipasst") || path.file_name().into_string().ok()?.ends_with(".ipassx") {
+            continue;
+        }
         let file_name = path.file_name().into_string().ok()?.replace(".ipass", "");
         let content = std::fs::read_to_string(get_ipass_folder() + &path.file_name().to_string_lossy()).ok()?;
         collected_data += format!("{}\n{}\n", file_name, content).as_str();

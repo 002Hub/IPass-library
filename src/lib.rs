@@ -29,6 +29,10 @@ struct Saved {
 
 fn get_token() -> String {
     let mut token: String = String::new();
+    //check if file exists
+    if !std::path::Path::new(&(get_ipass_folder()+"token.ipasst")).exists() {
+        return "".to_string();
+    }
     File::open(get_ipass_folder()+"token.ipasst").unwrap().read_to_string(&mut token).unwrap();
     token
 }

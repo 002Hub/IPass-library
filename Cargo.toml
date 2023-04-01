@@ -12,6 +12,8 @@ aes-gcm = { features = ["alloc", "aes"], default-features = false, version = "0.
 sha2 = { default-features = false, version = "0.10.6" }
 hex = "0.4.3"
 brotli = { features = ["std"], default-features = false, version = "3.3.4" }
+reqwest = { features = ["json"], version = "0.11.14"}
+serde = { features = ["serde_derive"], version = "1.0.158"}
 
 [profile.release]
 opt-level = 'z'     # Optimize for size

@@ -67,15 +67,15 @@ pub async fn isync_compare_hashes() -> bool {
             let body = res.json::<HashRes>().await.unwrap();
             if body.success {
                 println!("Hash: {} {}", hash, body.hash);
-                return body.hash == hash;
+                body.hash == hash
             } else {
                 eprintln!("Error: {}", body.errorcode);
-                return true;
+                true
             }
         },
         None => {
             eprintln!("No token found!");
-            return true;
+            true
         }
     }
 }
@@ -154,13 +154,13 @@ pub async fn isync_save() -> bool {
                     let res = client.execute(req).await.unwrap();
                     let response = res.json::<Save>().await.unwrap();
                     if response.success {
-                        return true;
+                        true
                     } else {
                         if response.status == 200 {
                             return true;
                         }
                         eprintln!("Error: {}", response.errorcode);
-                        return false;
+                        false
                     }
                 },
                 None => {

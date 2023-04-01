@@ -27,28 +27,35 @@ struct Saved {
     _errorcode: u64
 }
 
-fn get_token() -> String {
+fn get_token() -> Option<String> {
     let mut token: String = String::new();
     //check if file exists
     if !std::path::Path::new(&(get_ipass_folder()+"token.ipasst")).exists() {
-        return "".to_string();
+        return None;
     }
     File::open(get_ipass_folder()+"token.ipasst").unwrap().read_to_string(&mut token).unwrap();
-    token
+    Some(token)
 }
 
 
 pub async fn isync_get() -> bool {
     let token = get_token();
-    let client = reqwest::Client::builder().https_only(true).build().unwrap();
-    let req = client.get("https://ipass.ipost.rocks/saved").header("ipass-auth-token", token).build().unwrap();
-    let res = client.execute(req).await.unwrap();
-    let body = res.json::<Saved>().await.unwrap();
-    if body.success {
-        File::create(get_ipass_folder()+"temp.ipassx").unwrap().write_all(&body.data).unwrap();
-        import_file(&(get_ipass_folder()+"temp.ipassx"));
-        std::fs::remove_file(get_ipass_folder()+"temp.ipassx").unwrap();
-        return true;
+    match token {
+        Some(token) => {
+            let client = reqwest::Client::builder().https_only(true).build().unwrap();
+            let req = client.get("https://ipass.ipost.rocks/saved").header("ipass-auth-token", token).build().unwrap();
+            let res = client.execute(req).await.unwrap();
+            let body = res.json::<Saved>().await.unwrap();
+            if body.success {
+                File::create(get_ipass_folder()+"temp.ipassx").unwrap().write_all(&body.data).unwrap();
+                import_file(&(get_ipass_folder()+"temp.ipassx"));
+                std::fs::remove_file(get_ipass_folder()+"temp.ipassx").unwrap();
+                return true;
+            }
+        },
+        None => {
+            return false;
+        }
     }
 
     false
@@ -59,15 +66,22 @@ pub async fn isync_save() -> bool {
     match possible_data {
         Some(data) => {
             let token = get_token();
-            let client = reqwest::Client::builder().https_only(true).build().unwrap();
-            let req = client.post("https://ipass.ipost.rocks/saved")
-                .header("ipass-auth-token", token)
-                .body(data)
-                .build()
-                .unwrap();
-            let _res = client.execute(req).await.unwrap();
-            //sent data
-            true
+            match token {
+                Some(token) => {
+                    let client = reqwest::Client::builder().https_only(true).build().unwrap();
+                    let req = client.post("https://ipass.ipost.rocks/saved")
+                        .header("ipass-auth-token", token)
+                        .body(data)
+                        .build()
+                        .unwrap();
+                    let _res = client.execute(req).await.unwrap();
+                    //sent data
+                    true
+                },
+                None => {
+                    false
+                }
+            }
         },
         None => {
             false

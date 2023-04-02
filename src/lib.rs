@@ -53,6 +53,12 @@ fn sha256hexhash(data: Vec<u8>) -> String {
 }
 
 pub async fn isync_compare_hashes() -> bool {
+    /*!
+     * \brief compare local hash to remote hash
+     * \return true if hashes are equal
+     * \return false if hashes are not equal
+     * \return true if error
+     */
     let hash = sha256hexhash(export_data().unwrap());
 
     let token = get_token();
@@ -62,14 +68,29 @@ pub async fn isync_compare_hashes() -> bool {
             let req = client.get("https://ipass.ipost.rocks/hash")
             .header("ipass-auth-token", token)
             .timeout(std::time::Duration::from_secs(3))
-            .build().unwrap();
-            let res = client.execute(req).await.unwrap();
-            let body = res.json::<HashRes>().await.unwrap();
-            if body.success {
-                println!("Hash: {} {}", hash, body.hash);
-                body.hash == hash
+            .build();
+            if let Ok(req) = req {
+                let res = client.execute(req).await;
+                if let Ok(res) = res {
+                    let body = res.json::<HashRes>().await;
+                    if let Ok(body) = body {
+                        if body.success {
+                            //println!("Hash: {} {}", hash, body.hash);
+                            body.hash == hash
+                        } else {
+                            eprintln!("Error: {}", body.errorcode);
+                            true
+                        }
+                    } else {
+                        eprintln!("Error: {}", body.err().unwrap());
+                        true
+                    }
+                } else {
+                    eprintln!("Error: {}", res.err().unwrap());
+                    true
+                }
             } else {
-                eprintln!("Error: {}", body.errorcode);
+                eprintln!("Error: {}", req.err().unwrap());
                 true
             }
         },
@@ -89,20 +110,35 @@ pub async fn isync_get() -> bool {
                 let req = client.get("https://ipass.ipost.rocks/saved")
                 .header("ipass-auth-token", token)
                 .timeout(std::time::Duration::from_secs(3))
-                .build().unwrap();
-                let res = client.execute(req).await.unwrap();
-                let body = res.json::<Saved>().await.unwrap();
-                if body.success {
-                    println!("new hash: {}",sha256hexhash(body.data.clone()));
-                    File::create(get_ipass_folder()+"temp.ipassx").unwrap().write_all(&body.data).unwrap();
-                    import_file(&(get_ipass_folder()+"temp.ipassx"));
-                    std::fs::remove_file(get_ipass_folder()+"temp.ipassx").unwrap();
-                    return true;
-                } else {
-                    if body.status == 200 {
-                        return true;
+                .build();
+                if let Ok(req) = req {
+                    let res = client.execute(req).await;
+                    if let Ok(res) = res {
+                        let body = res.json::<Saved>().await;
+                        if let Ok(body) = body {
+                            if body.success {
+                                println!("new hash: {}",sha256hexhash(body.data.clone()));
+                                File::create(get_ipass_folder()+"temp.ipassx").unwrap().write_all(&body.data).unwrap();
+                                import_file(&(get_ipass_folder()+"temp.ipassx"));
+                                std::fs::remove_file(get_ipass_folder()+"temp.ipassx").unwrap();
+                                return true;
+                            } else {
+                                if body.status == 200 {
+                                    return true;
+                                }
+                                eprintln!("Error: {}", body.errorcode);
+                                return false;
+                            }
+                        } else {
+                            eprintln!("Error: {}", body.err().unwrap());
+                            return false;
+                        }
+                    } else {
+                        eprintln!("Error: {}", res.err().unwrap());
+                        return false;
                     }
-                    eprintln!("Error: {}", body.errorcode);
+                } else {
+                    eprintln!("Error: {}", req.err().unwrap());
                     return false;
                 }
             },

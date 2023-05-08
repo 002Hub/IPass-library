@@ -413,12 +413,19 @@ pub fn get_ipass_folder() -> String {
 }
 
 pub fn create_entry(name: &String, pw: String, mpw: String) -> bool {
+    let mut entry_name = String::new();
+    for c in name.chars() {
+        match c {
+            ':' | '$' | '<' | '>' | '|' | '?' | '*' | '/' | '\\' => {},
+            _ => entry_name.push(c),
+        }
+    }
     if std::path::Path::new(&(get_ipass_folder()+name+".ipass")).exists() {
         return false;
     }
     // println!("{pw}");
-    let pw = encrypt_pass(name.to_owned(), pw,mpw);
-    let mut file = File::create(get_ipass_folder()+name+".ipass").unwrap();
+    let pw = encrypt_pass(entry_name.to_owned(), pw,mpw);
+    let mut file = File::create(get_ipass_folder()+entry_name.as_str()+".ipass").unwrap();
     file.write_all(pw.as_bytes()).unwrap();
     true
 }

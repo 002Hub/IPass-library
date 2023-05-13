@@ -412,7 +412,7 @@ pub fn get_ipass_folder() -> String {
     path
 }
 
-pub fn create_entry(name: &String, pw: String, mpw: String) -> bool {
+pub fn create_entry(name: &str, pw: String, mpw: String) -> bool {
     let mut entry_name = String::new();
     for c in name.chars() {
         match c {
@@ -420,7 +420,7 @@ pub fn create_entry(name: &String, pw: String, mpw: String) -> bool {
             _ => entry_name.push(c),
         }
     }
-    if std::path::Path::new(&(get_ipass_folder()+name+".ipass")).exists() {
+    if std::path::Path::new(&(get_ipass_folder()+entry_name.as_str()+".ipass")).exists() {
         return false;
     }
     // println!("{pw}");
@@ -431,7 +431,15 @@ pub fn create_entry(name: &String, pw: String, mpw: String) -> bool {
 }
 
 fn read_entry(name:&String,mpw:String) -> Result<String,String> {
-    let content = &mut read_to_string(get_ipass_folder()+name+".ipass").expect("Should have been able to read the file");
+    let path = get_ipass_folder()+name+".ipass";
+
+    //check if entry exists
+    if !std::path::Path::new(&path).exists() {
+        return Err(format!("Entry {} does not exist",name));
+    }
+
+    let err_msg = format!("Should have been able to read the file {}",path);
+    let content = &mut read_to_string(path).unwrap_or_else(|_| { panic!("{}", err_msg) });
     decrypt_pass(name.to_owned(),hex::decode(content).unwrap(),mpw)
 }
 
@@ -516,4 +524,44 @@ pub fn random_password() -> String {
         chars += &char_set[(index as usize)%(alph_len-1)].to_string();
     }
     chars
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn encrypt_decrypt() {
+        let name = "test".to_string();
+        let password = "test".to_string();
+        let mpw = "test".to_string();
+        let encrypted = hex::decode(super::encrypt_pass(name.clone(), password.clone(), mpw.clone())).unwrap();
+        let decrypted = super::decrypt_pass(name, encrypted, mpw).unwrap();
+        assert_eq!(decrypted, password);
+    }
+
+    #[test]
+    fn encrypt_decrypt_error() {
+        let name = "test".to_string();
+        let password = "test".to_string();
+        let mpw = "test".to_string();
+        let encrypted = hex::decode(super::encrypt_pass(name.clone(), password.clone(), mpw.clone())).unwrap();
+        let decrypted = super::decrypt_pass(name, encrypted, "test2".to_string());
+        assert!(decrypted.is_err());
+    }
+
+    #[test]
+    fn create_delete_entry() {
+        let name = "test".to_string();
+        let password = "test".to_string();
+        let mpw = "test".to_string();
+        let created = super::create_entry(&name, password.clone(), mpw.clone());
+        assert!(created);
+        let entry = super::read_entry(&name, mpw.clone());
+        assert!(entry.is_ok());
+        assert_eq!(entry.unwrap(), password);
+
+        let deleted = std::fs::remove_file(super::get_ipass_folder()+name.as_str()+".ipass");
+        assert!(deleted.is_ok());
+        let entry = super::read_entry(&name, mpw.clone());
+        assert!(entry.is_err());
+    }
 }

@@ -29,7 +29,7 @@ struct Saved {
 }
 
 fn get_token() -> Option<String> {
-    let mut token: String = String::new();
+    let mut token: String = String::default();
     //check if file exists
     if !std::path::Path::new(&(get_ipass_folder()+"token.ipasst")).exists() {
         return None;
@@ -211,12 +211,12 @@ pub async fn isync_save() -> bool {
 }
 
 pub fn import_data<R: Read>(mut reader: brotli::Decompressor<R>) {
-    let mut content: String = String::new();
+    let mut content: String = String::default();
     let mut buf = [0u8; 4096];
     loop {
         match reader.read(&mut buf[..]) {
             Err(e) => {
-                if let std::io::ErrorKind::Interrupted = e.kind() {
+                if e.kind() == std::io::ErrorKind::Interrupted {
                     continue;
                 }
                 panic!("{}", e);
@@ -255,20 +255,20 @@ pub fn import_data<R: Read>(mut reader: brotli::Decompressor<R>) {
 }
 
 pub fn import_file(file_path:&String) -> bool {
-    if std::path::Path::new(file_path).exists() {
+    let file_exists = std::path::Path::new(file_path).exists();
+    if file_exists {
         let reader = brotli::Decompressor::new(
             File::open(file_path).unwrap(),
             4096, // buffer size
         );
         import_data(reader);
-        true
-    } else {
-        false
     }
+
+    file_exists
 }
 
 pub fn export_data() -> Option<Vec<u8>> {
-    let mut collected_data = String::new();
+    let mut collected_data = String::default();
     let paths = std::fs::read_dir(get_ipass_folder()).ok()?;
 
     for path in paths.flatten() {
@@ -315,7 +315,7 @@ pub fn export_file(file_path: &String) -> bool {
 
 fn vecu8_to_string(vec: Vec<u8>) -> String {
     let mut do_print_warning = false;
-    let mut out: String = String::new();
+    let mut out: String = String::default();
     for ind in vec {
         if let Ok(a) = std::str::from_utf8(&[ind]) {
             out += a;
@@ -334,7 +334,7 @@ fn vecu8_to_string(vec: Vec<u8>) -> String {
 }
 
 fn encrypt_pass(nonce_arg:String, pass: String,mpw: String) -> String {
-    let mut nonce_argument = String::new();
+    let mut nonce_argument = String::default();
     if nonce_arg.len() < 12 {
         nonce_argument = nonce_arg.clone() + &" ".repeat(12-nonce_arg.len());
     }
@@ -362,7 +362,7 @@ fn encrypt_pass(nonce_arg:String, pass: String,mpw: String) -> String {
 
 
 fn decrypt_pass(nonce_arg:String, pass: Vec<u8>,mpw: String) -> Result<String,String> {
-    let mut nonce_argument = String::new();
+    let mut nonce_argument = String::default();
     if nonce_arg.len() < 12 {
         nonce_argument = nonce_arg.clone() + &" ".repeat(12-nonce_arg.len());
     }
@@ -413,7 +413,7 @@ pub fn get_ipass_folder() -> String {
 }
 
 pub fn create_entry(name: &str, pw: String, mpw: String) -> bool {
-    let mut entry_name = String::new();
+    let mut entry_name = String::default();
     for c in name.chars() {
         match c {
             ':' | '$' | '<' | '>' | '|' | '?' | '*' | '/' | '\\' => {},
@@ -484,7 +484,7 @@ pub fn prompt_answer(toprint: String) -> String {
 pub fn prompt_answer_nolower(toprint: String) -> String {
     print!("{toprint}");
     std::io::stdout().flush().unwrap();
-    let mut choice = String::new();
+    let mut choice = String::default();
     std::io::stdin().read_line(&mut choice).expect("Failed to read choice");
 
     return choice.trim().to_string();
@@ -517,7 +517,7 @@ pub fn random_password() -> String {
     let char_set:Vec<char> = alphabet.chars().collect();
     let mut chars_index: Vec<u8> = vec![0;20];
     OsRng.fill_bytes(&mut chars_index);
-    let mut chars: String = String::new();
+    let mut chars: String = String::default();
 
     for index in chars_index {
         // println!("{} - {} - {}",index,(index as usize)%(alph_len-1),alph_len);

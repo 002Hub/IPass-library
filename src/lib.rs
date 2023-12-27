@@ -1,19 +1,12 @@
-use std::io::{Read, Write};
 use aes_gcm::{
     aead::{Aead, KeyInit},
-    Aes256Gcm, Nonce
+    Aes256Gcm, Nonce,
 };
-use sha2::{Sha256, Digest};
-use std::fs::{
-    File,
-    read_dir,
-    read_to_string
-};
-use rand::{
-    rngs::OsRng,
-    RngCore
-};
+use rand::{rngs::OsRng, RngCore};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::fs::{read_dir, read_to_string, File};
+use std::io::{Read, Write};
 
 pub fn get_args() -> Vec<String> {
     //! [0] = file path; [n>0] = argument
@@ -25,16 +18,19 @@ struct Saved {
     success: bool,
     status: u16,
     data: Vec<u8>,
-    errorcode: u64
+    errorcode: u64,
 }
 
 fn get_token() -> Option<String> {
-    let mut token: String = String::default();
+    let mut token: String = String::new();
     //check if file exists
-    if !std::path::Path::new(&(get_ipass_folder()+"token.ipasst")).exists() {
+    if !std::path::Path::new(&(get_ipass_folder() + "token.ipasst")).exists() {
         return None;
     }
-    File::open(get_ipass_folder()+"token.ipasst").unwrap().read_to_string(&mut token).unwrap();
+    File::open(get_ipass_folder() + "token.ipasst")
+        .unwrap()
+        .read_to_string(&mut token)
+        .unwrap();
     Some(token)
 }
 
@@ -43,7 +39,7 @@ struct HashRes {
     success: bool,
     hash: String,
     status: u16,
-    errorcode: u64
+    errorcode: u64,
 }
 
 fn sha256hexhash(data: Vec<u8>) -> String {
@@ -65,10 +61,11 @@ pub async fn isync_compare_hashes() -> bool {
     match token {
         Some(token) => {
             let client = reqwest::Client::builder().https_only(true).build().unwrap();
-            let req = client.get("https://ipass.ipost.rocks/hash")
-            .header("ipass-auth-token", token)
-            .timeout(std::time::Duration::from_secs(3))
-            .build();
+            let req = client
+                .get("https://ipass.ipost.rocks/hash")
+                .header("ipass-auth-token", token)
+                .timeout(std::time::Duration::from_secs(3))
+                .build();
             if let Ok(req) = req {
                 let res = client.execute(req).await;
                 if let Ok(res) = res {
@@ -93,7 +90,7 @@ pub async fn isync_compare_hashes() -> bool {
                 eprintln!("Error: {}", req.err().unwrap());
                 true
             }
-        },
+        }
         None => {
             eprintln!("No token found!");
             true
@@ -107,20 +104,24 @@ pub async fn isync_get() -> bool {
         match token {
             Some(token) => {
                 let client = reqwest::Client::builder().https_only(true).build().unwrap();
-                let req = client.get("https://ipass.ipost.rocks/saved")
-                .header("ipass-auth-token", token)
-                .timeout(std::time::Duration::from_secs(3))
-                .build();
+                let req = client
+                    .get("https://ipass.ipost.rocks/saved")
+                    .header("ipass-auth-token", token)
+                    .timeout(std::time::Duration::from_secs(3))
+                    .build();
                 if let Ok(req) = req {
                     let res = client.execute(req).await;
                     if let Ok(res) = res {
                         let body = res.json::<Saved>().await;
                         if let Ok(body) = body {
                             if body.success {
-                                println!("new hash: {}",sha256hexhash(body.data.clone()));
-                                File::create(get_ipass_folder()+"temp.ipassx").unwrap().write_all(&body.data).unwrap();
-                                import_file(&(get_ipass_folder()+"temp.ipassx"));
-                                std::fs::remove_file(get_ipass_folder()+"temp.ipassx").unwrap();
+                                println!("new hash: {}", sha256hexhash(body.data.clone()));
+                                File::create(get_ipass_folder() + "temp.ipassx")
+                                    .unwrap()
+                                    .write_all(&body.data)
+                                    .unwrap();
+                                import_file(&(get_ipass_folder() + "temp.ipassx"));
+                                std::fs::remove_file(get_ipass_folder() + "temp.ipassx").unwrap();
                                 return true;
                             } else {
                                 if body.status == 200 {
@@ -141,7 +142,7 @@ pub async fn isync_get() -> bool {
                     eprintln!("Error: {}", req.err().unwrap());
                     return false;
                 }
-            },
+            }
             None => {
                 eprintln!("No token found!");
                 return false;
@@ -155,14 +156,14 @@ pub async fn isync_get() -> bool {
 struct Save {
     success: bool,
     status: u16,
-    errorcode: u64
+    errorcode: u64,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 struct SavedData {
     data: Vec<u8>,
     amount: i32,
-    token: String
+    token: String,
 }
 
 pub async fn isync_save() -> bool {
@@ -175,13 +176,14 @@ pub async fn isync_save() -> bool {
                     let saveddata = SavedData {
                         data,
                         amount: read_dir(get_ipass_folder()).unwrap().count() as i32,
-                        token
+                        token,
                     };
 
                     let requestbody = serde_json::to_string(&saveddata).unwrap();
 
                     let client = reqwest::Client::builder().https_only(true).build().unwrap();
-                    let req = client.post("https://ipass.ipost.rocks/save")
+                    let req = client
+                        .post("https://ipass.ipost.rocks/save")
                         .body(requestbody)
                         .header("content-type", "application/json")
                         .timeout(std::time::Duration::from_secs(5))
@@ -198,25 +200,21 @@ pub async fn isync_save() -> bool {
                         eprintln!("Error: {}", response.errorcode);
                         false
                     }
-                },
-                None => {
-                    false
                 }
+                None => false,
             }
-        },
-        None => {
-            false
         }
+        None => false,
     }
 }
 
 pub fn import_data<R: Read>(mut reader: brotli::Decompressor<R>) {
-    let mut content: String = String::default();
+    let mut content: String = String::new();
     let mut buf = [0u8; 4096];
     loop {
         match reader.read(&mut buf[..]) {
             Err(e) => {
-                if e.kind() == std::io::ErrorKind::Interrupted {
+                if let std::io::ErrorKind::Interrupted = e.kind() {
                     continue;
                 }
                 panic!("{}", e);
@@ -232,7 +230,9 @@ pub fn import_data<R: Read>(mut reader: brotli::Decompressor<R>) {
 
     let entries = get_entries().flatten();
     for entry in entries {
-        if entry.file_name().to_str().unwrap().ends_with(".ipasst") || entry.file_name().to_str().unwrap().ends_with(".ipassx") {
+        if entry.file_name().to_str().unwrap().ends_with(".ipasst")
+            || entry.file_name().to_str().unwrap().ends_with(".ipassx")
+        {
             continue;
         }
         std::fs::remove_file(entry.path()).unwrap();
@@ -248,35 +248,39 @@ pub fn import_data<R: Read>(mut reader: brotli::Decompressor<R>) {
 
         println!("importing {}...", name);
 
-        let mut file = File::create(format!("{}/{}.ipass",get_ipass_folder(), name)).unwrap();
+        let mut file = File::create(format!("{}/{}.ipass", get_ipass_folder(), name)).unwrap();
         file.write_all(i.as_bytes()).unwrap();
         name = "";
     }
 }
 
-pub fn import_file(file_path:&String) -> bool {
-    let file_exists = std::path::Path::new(file_path).exists();
-    if file_exists {
+pub fn import_file(file_path: &String) -> bool {
+    if std::path::Path::new(file_path).exists() {
         let reader = brotli::Decompressor::new(
             File::open(file_path).unwrap(),
             4096, // buffer size
         );
         import_data(reader);
+        true
+    } else {
+        false
     }
-
-    file_exists
 }
 
 pub fn export_data() -> Option<Vec<u8>> {
-    let mut collected_data = String::default();
+    let mut collected_data = String::new();
     let paths = std::fs::read_dir(get_ipass_folder()).ok()?;
 
     for path in paths.flatten() {
-        if path.file_name().into_string().ok()?.ends_with(".ipasst") || path.file_name().into_string().ok()?.ends_with(".ipassx") {
+        if path.file_name().into_string().ok()?.ends_with(".ipasst")
+            || path.file_name().into_string().ok()?.ends_with(".ipassx")
+        {
             continue;
         }
         let file_name = path.file_name().into_string().ok()?.replace(".ipass", "");
-        let content = std::fs::read_to_string(get_ipass_folder() + &path.file_name().to_string_lossy()).ok()?;
+        let content =
+            std::fs::read_to_string(get_ipass_folder() + &path.file_name().to_string_lossy())
+                .ok()?;
         collected_data += format!("{}\n{}\n", file_name, content).as_str();
     }
 
@@ -289,8 +293,6 @@ pub fn export_data() -> Option<Vec<u8>> {
 
     Some(compressed_data)
 }
-
-
 
 pub fn export_file(file_path: &String) -> bool {
     match export_data() {
@@ -315,15 +317,15 @@ pub fn export_file(file_path: &String) -> bool {
 
 fn vecu8_to_string(vec: Vec<u8>) -> String {
     let mut do_print_warning = false;
-    let mut out: String = String::default();
+    let mut out: String = String::new();
     for ind in vec {
         if let Ok(a) = std::str::from_utf8(&[ind]) {
             out += a;
         } else {
             do_print_warning = true;
-            eprintln!("[WARNING] malformed character {}",ind);
+            eprintln!("[WARNING] malformed character {}", ind);
             let mut temp_vec: Vec<u8> = Vec::new();
-            temp_vec.insert(0,ind%128);
+            temp_vec.insert(0, ind % 128);
             out += vecu8_to_string(temp_vec).as_str();
         }
     }
@@ -333,20 +335,24 @@ fn vecu8_to_string(vec: Vec<u8>) -> String {
     out
 }
 
-fn encrypt_pass(nonce_arg:String, pass: String,mpw: String) -> String {
-    let mut nonce_argument = String::default();
-    if nonce_arg.len() < 12 {
-        nonce_argument = nonce_arg.clone() + &" ".repeat(12-nonce_arg.len());
+fn generate_nonce(nonce_arg: &str) -> String {
+    const NONCE_LEN: usize = 12;
+    match nonce_arg.len().cmp(&NONCE_LEN) {
+        std::cmp::Ordering::Less => {
+            nonce_arg.to_string() + &" ".repeat(NONCE_LEN - nonce_arg.len())
+        }
+        std::cmp::Ordering::Greater => nonce_arg[0..NONCE_LEN].to_string(),
+        std::cmp::Ordering::Equal => nonce_arg.to_string(),
     }
-    if nonce_arg.len() > 12 {
-        nonce_argument = nonce_arg[0..12].to_string();
-    }
+}
+
+fn encrypt_pass(nonce_arg: &str, pass: &str, mpw: &str) -> String {
+    let nonce_argument = generate_nonce(nonce_arg);
 
     let mut nonce_hasher = Sha256::new();
     nonce_hasher.update(nonce_argument.as_bytes());
 
     let nonce_final = &nonce_hasher.finalize()[0..12];
-
 
     let mut hasher = Sha256::new();
     hasher.update(mpw.as_bytes());
@@ -359,16 +365,8 @@ fn encrypt_pass(nonce_arg:String, pass: String,mpw: String) -> String {
     hex::encode(ciphertext)
 }
 
-
-
-fn decrypt_pass(nonce_arg:String, pass: Vec<u8>,mpw: String) -> Result<String,String> {
-    let mut nonce_argument = String::default();
-    if nonce_arg.len() < 12 {
-        nonce_argument = nonce_arg.clone() + &" ".repeat(12-nonce_arg.len());
-    }
-    if nonce_arg.len() > 12 {
-        nonce_argument = nonce_arg[0..12].to_string();
-    }
+fn decrypt_pass(nonce_arg: &str, pass: Vec<u8>, mpw: &str) -> Result<String, String> {
+    let nonce_argument = generate_nonce(nonce_arg);
 
     let mut nonce_hasher = Sha256::new();
     nonce_hasher.update(nonce_argument.as_bytes());
@@ -384,123 +382,132 @@ fn decrypt_pass(nonce_arg:String, pass: Vec<u8>,mpw: String) -> Result<String,St
 
     let plaintext = cipher.decrypt(nonce, pass.as_ref());
     match plaintext {
-        Ok(res) => {
-            Ok(vecu8_to_string(res))
-        }
-        Err(_) => {
-            Err("[ERROR] Error decrypting data, check your master password".to_string())
-        }
+        Ok(res) => Ok(vecu8_to_string(res)),
+        Err(_) => Err("[ERROR] Error decrypting data, check your master password".to_string()),
     }
 }
 
 pub fn get_home_folder_str() -> String {
+    const HOME_MESSAGE: &str = "Could not get home folder, set the IPASS_HOME environment variable for the parent-folder of where you want to store your passwords";
     match home::home_dir() {
         Some(path) => {
             let p = path.to_str();
             match p {
                 Some(pa) => pa.to_owned(),
-                None => "".to_owned(),
+                None => panic!("{HOME_MESSAGE}"),
             }
-        },
-        None => "".to_owned(),
+        }
+        None => panic!("{HOME_MESSAGE}"),
     }
 }
 
 pub fn get_ipass_folder() -> String {
-    let path = get_home_folder_str()+"/.IPass/";
+    let path = get_home_folder_str() + "/.IPass/";
     std::fs::create_dir_all(&path).unwrap();
     path
 }
 
-pub fn create_entry(name: &str, pw: String, mpw: String) -> bool {
-    let mut entry_name = String::default();
+pub fn create_entry(name: &str, pw: &str, mpw: &str) -> bool {
+    let mut entry_name = String::new();
     for c in name.chars() {
         match c {
-            ':' | '$' | '<' | '>' | '|' | '?' | '*' | '/' | '\\' => {},
+            ':' | '$' | '<' | '>' | '|' | '?' | '*' | '/' | '\\' => {}
             _ => entry_name.push(c),
         }
     }
-    if std::path::Path::new(&(get_ipass_folder()+entry_name.as_str()+".ipass")).exists() {
+    if std::path::Path::new(&(get_ipass_folder() + entry_name.as_str() + ".ipass")).exists() {
         return false;
     }
-    // println!("{pw}");
-    let pw = encrypt_pass(entry_name.to_owned(), pw,mpw);
-    let mut file = File::create(get_ipass_folder()+entry_name.as_str()+".ipass").unwrap();
+    let pw = encrypt_pass(&entry_name, pw, mpw);
+    let mut file = File::create(get_ipass_folder() + entry_name.as_str() + ".ipass").unwrap();
     file.write_all(pw.as_bytes()).unwrap();
     true
 }
 
-fn read_entry(name:&String,mpw:String) -> Result<String,String> {
-    let path = get_ipass_folder()+name+".ipass";
+fn read_entry(name: &str, mpw: &str) -> Result<String, String> {
+    let path = get_ipass_folder() + name + ".ipass";
 
     //check if entry exists
     if !std::path::Path::new(&path).exists() {
-        return Err(format!("Entry {} does not exist",name));
+        return Err(format!("Entry {} does not exist", name));
     }
 
-    let err_msg = format!("Should have been able to read the file {}",path);
-    let content = &mut read_to_string(path).unwrap_or_else(|_| { panic!("{}", err_msg) });
-    decrypt_pass(name.to_owned(),hex::decode(content).unwrap(),mpw)
+    let err_msg = format!("Should have been able to read the file {}", path);
+    let content = &mut read_to_string(path).unwrap_or_else(|_| panic!("{}", err_msg));
+    decrypt_pass(name, hex::decode(content).unwrap(), mpw)
 }
 
-pub fn get_entry(name:&String, mpw: String) -> Result<String,String> {
-    read_entry(name,mpw)
+pub fn get_entry(name: &str, mpw: &str) -> Result<String, String> {
+    read_entry(name, mpw)
 }
 
-pub fn edit_password(name:&String, password:String, mpw: String) -> bool {
-    let entry_result = read_entry(name, mpw.clone());
+pub fn edit_password(name: &str, password: &str, mpw: &str) -> bool {
+    let entry_result = read_entry(name, mpw);
     if let Ok(entry) = entry_result {
-        // println!("entry: {entry}");
         let mut parts = entry.split(';');
         let username = parts.next().unwrap().to_string();
-        let _old_password = parts.next().unwrap();
-        let data = encrypt_pass(name.to_owned(), username+";"+password.as_str(),mpw);
-        let mut file = File::create(get_ipass_folder()+name+".ipass").unwrap();
+        parts
+            .next()
+            .expect("Expected to be able to get old password");
+
+        let username_pw_combo = username + ";" + password;
+        let data = encrypt_pass(name, &username_pw_combo, mpw);
+        let mut file = File::create(get_ipass_folder() + name + ".ipass").unwrap();
         file.write_all(data.as_bytes()).unwrap();
         return true;
     }
     false
 }
 
-pub fn edit_username(name:&String, username: String, mpw: String) -> bool {
-    let entry_result = read_entry(name, mpw.clone());
+pub fn edit_username(name: &str, username: &str, mpw: &str) -> bool {
+    let entry_result = read_entry(name, mpw);
     if let Ok(entry) = entry_result {
         // println!("entry: {entry}");
         let mut parts = entry.split(';');
-        let _old_username = parts.next().unwrap();
+
+        parts
+            .next()
+            .expect("Expected to be able to get old username");
+
         let password = parts.next().unwrap();
-        let data = encrypt_pass(name.to_owned(), username+";"+password,mpw);
-        let mut file = File::create(get_ipass_folder()+name+".ipass").unwrap();
+
+        let username_pw_combo = username.to_string() + ";" + password;
+
+        let data = encrypt_pass(name, &username_pw_combo, mpw);
+        let mut file = File::create(get_ipass_folder() + name + ".ipass").unwrap();
         file.write_all(data.as_bytes()).unwrap();
         return true;
     }
     false
 }
 
-pub fn prompt_answer(toprint: String) -> String {
+pub fn prompt_answer(toprint: &str) -> String {
     prompt_answer_nolower(toprint).to_lowercase()
 }
 
-pub fn prompt_answer_nolower(toprint: String) -> String {
+pub fn prompt_answer_nolower(toprint: &str) -> String {
     print!("{toprint}");
     std::io::stdout().flush().unwrap();
-    let mut choice = String::default();
-    std::io::stdin().read_line(&mut choice).expect("Failed to read choice");
+    let mut choice = String::new();
+    std::io::stdin()
+        .read_line(&mut choice)
+        .expect("Failed to read choice");
 
-    return choice.trim().to_string();
+    choice.trim().to_string()
 }
 
-pub fn rename(name: &String, new_name: &String, mpw: String) -> bool {
-    if !std::path::Path::new(&(get_ipass_folder()+name+".ipass")).exists() {
+pub fn rename(name: &str, new_name: &str, mpw: &str) -> bool {
+    if !std::path::Path::new(&(get_ipass_folder() + name + ".ipass")).exists() {
         return false;
     }
-    if std::path::Path::new(&(get_ipass_folder()+new_name+".ipass")).exists() {
+    if std::path::Path::new(&(get_ipass_folder() + new_name + ".ipass")).exists() {
         return false;
     }
-    let content = &mut read_to_string(get_ipass_folder()+name+".ipass").expect("Should have been able to read the file");
-    if let Ok(mut data) = decrypt_pass(name.to_owned(),hex::decode(content).unwrap(),mpw.clone()) {
-        data = encrypt_pass(new_name.to_owned(), data,mpw);
-        let mut file = File::create(get_ipass_folder()+new_name+".ipass").unwrap();
+    let content = &mut read_to_string(get_ipass_folder() + name + ".ipass")
+        .expect("Should have been able to read the file");
+    if let Ok(mut data) = decrypt_pass(name, hex::decode(content).unwrap(), mpw) {
+        data = encrypt_pass(new_name, &data, mpw);
+        let mut file = File::create(get_ipass_folder() + new_name + ".ipass").unwrap();
         file.write_all(data.as_bytes()).unwrap();
         return true;
     }
@@ -512,56 +519,94 @@ pub fn get_entries() -> std::fs::ReadDir {
 }
 
 pub fn random_password() -> String {
-    let alphabet: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!\"$%&/()=?{[]}\\,.-;:_><|+*#'";
-    let alph_len: usize = alphabet.chars().count();
-    let char_set:Vec<char> = alphabet.chars().collect();
-    let mut chars_index: Vec<u8> = vec![0;20];
+    const ALPHABET: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!\"$%&/()=?{[]}\\,.-;:_><|+*#'";
+    let alph_len: usize = ALPHABET.len();
+    let char_set: Vec<char> = ALPHABET.chars().collect();
+    let mut chars_index: Vec<u8> = vec![0; 20];
     OsRng.fill_bytes(&mut chars_index);
-    let mut chars: String = String::default();
-
-    for index in chars_index {
-        // println!("{} - {} - {}",index,(index as usize)%(alph_len-1),alph_len);
-        chars += &char_set[(index as usize)%(alph_len-1)].to_string();
-    }
-    chars
+    chars_index
+        .iter()
+        .map(|index| char_set[(*index as usize) % alph_len].to_string())
+        .collect()
 }
 
 #[cfg(test)]
 mod tests {
     #[test]
     fn encrypt_decrypt() {
-        let name = "test".to_string();
-        let password = "test".to_string();
-        let mpw = "test".to_string();
-        let encrypted = hex::decode(super::encrypt_pass(name.clone(), password.clone(), mpw.clone())).unwrap();
-        let decrypted = super::decrypt_pass(name, encrypted, mpw).unwrap();
-        assert_eq!(decrypted, password);
+        const NAME: &str = "test";
+        const PASSWORD: &str = "test";
+        const MASTER_PASSWORD: &str = "test";
+        let encrypted = hex::decode(super::encrypt_pass(NAME, PASSWORD, MASTER_PASSWORD)).unwrap();
+        let decrypted = super::decrypt_pass(NAME, encrypted, MASTER_PASSWORD).unwrap();
+        assert_eq!(decrypted, PASSWORD);
     }
 
     #[test]
     fn encrypt_decrypt_error() {
-        let name = "test".to_string();
-        let password = "test".to_string();
-        let mpw = "test".to_string();
-        let encrypted = hex::decode(super::encrypt_pass(name.clone(), password.clone(), mpw.clone())).unwrap();
-        let decrypted = super::decrypt_pass(name, encrypted, "test2".to_string());
+        const NAME: &str = "test";
+        const PASSWORD: &str = "test";
+        const MASTER_PASSWORD: &str = "test";
+        let encrypted = hex::decode(super::encrypt_pass(NAME, PASSWORD, MASTER_PASSWORD)).unwrap();
+        let decrypted = super::decrypt_pass(NAME, encrypted, "test2");
         assert!(decrypted.is_err());
     }
 
     #[test]
     fn create_delete_entry() {
-        let name = "test".to_string();
-        let password = "test".to_string();
-        let mpw = "test".to_string();
-        let created = super::create_entry(&name, password.clone(), mpw.clone());
+        const NAME: &str = "test";
+        const PASSWORD: &str = "test";
+        const MASTER_PASSWORD: &str = "test";
+        let created = super::create_entry(NAME, PASSWORD, MASTER_PASSWORD);
         assert!(created);
-        let entry = super::read_entry(&name, mpw.clone());
+        let entry = super::read_entry(NAME, MASTER_PASSWORD);
         assert!(entry.is_ok());
-        assert_eq!(entry.unwrap(), password);
+        assert_eq!(entry.unwrap(), PASSWORD);
 
-        let deleted = std::fs::remove_file(super::get_ipass_folder()+name.as_str()+".ipass");
+        let deleted = std::fs::remove_file(super::get_ipass_folder() + NAME + ".ipass");
         assert!(deleted.is_ok());
-        let entry = super::read_entry(&name, mpw.clone());
+        let entry = super::read_entry(NAME, MASTER_PASSWORD);
         assert!(entry.is_err());
+    }
+
+    #[test]
+    fn test_get_ipass_folder() {
+        let path = super::get_ipass_folder();
+        let path = std::path::Path::new(&path);
+        assert!(path.is_dir());
+        assert!(path.exists());
+    }
+
+    #[test]
+    fn test_get_home_folder() {
+        let path = super::get_home_folder_str();
+        let path = std::path::Path::new(&path);
+        assert!(path.is_dir());
+        assert!(path.exists());
+    }
+
+    #[test]
+    fn test_nonce() {
+        let nonce = super::generate_nonce("test");
+        assert_eq!(nonce, "test        ");
+        let nonce = super::generate_nonce("0123456789abcdef");
+        assert_eq!(nonce, "0123456789ab");
+    }
+
+    #[test]
+    fn test_random_pw_length() {
+        for _ in 0..100_000 {
+            assert_eq!(super::random_password().len(), 20);
+        }
+    }
+
+    #[test]
+    fn test_sha256hexhash() {
+        let to_hash = "test".as_bytes().to_vec();
+        let hash = super::sha256hexhash(to_hash);
+        assert_eq!(
+            hash,
+            "9F86D081884C7D659A2FEAA0C55AD015A3BF4F1B2B0B822CD15D6C15B0F00A08"
+        );
     }
 }

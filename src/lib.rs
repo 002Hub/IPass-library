@@ -21,13 +21,17 @@ struct Saved {
     errorcode: u64,
 }
 
+pub fn get_token_path() -> String {
+    get_ipass_folder() + "token.ipasst"
+}
+
 fn get_token() -> Option<String> {
     let mut token: String = String::new();
     //check if file exists
-    if !std::path::Path::new(&(get_ipass_folder() + "token.ipasst")).exists() {
+    if !std::path::Path::new(&get_token_path()).exists() {
         return None;
     }
-    File::open(get_ipass_folder() + "token.ipasst")
+    File::open(get_token_path())
         .unwrap()
         .read_to_string(&mut token)
         .unwrap();
